@@ -56,7 +56,7 @@ stateDiagram-v2
 Requires **Python 3.10+**.
 
 ```bash
-git clone https://github.com/<your-username>/orderbook-engine.git
+git clone https://github.com/jonathannicolasdev/orderbook-engine.git
 cd orderbook-engine
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
