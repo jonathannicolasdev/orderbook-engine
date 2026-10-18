@@ -305,6 +305,7 @@ class BookSync:
         self.book = OrderBook(cfg.max_levels)
         self.state = State.DISCONNECTED
         self.last_msg = 0.0
+        self.last_event_time: Optional[int] = None   # Binance event time (ms) of last applied update
         self._last_snapshot = 0.0
         self.stats = dict(events=0, resyncs=0, reconnects=0, rotations=0,
                           stale=0, parse_errors=0, ignored=0, callback_errors=0)
@@ -486,6 +487,7 @@ class BookSync:
         except _BAD_DATA as err:
             raise ResyncRequired(f"malformed event {e['u']}: {err!r}") from err
         self.book._apply(bids, asks, e["u"])            # all-or-nothing: parsed first
+        self.last_event_time = e.get("E")
         self.stats["events"] += 1
         if self.book.is_crossed():
             raise ResyncRequired(f"crossed book at {e['u']}: "

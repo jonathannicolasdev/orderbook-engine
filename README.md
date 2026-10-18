@@ -23,6 +23,7 @@ Python · asyncio · no AI, no strategy: just a book you can trust.
 - **Bounded memory**: capped levels per side and a capped event buffer.
 - **Multi-symbol**: one task per symbol, sharing a single rate-limit budget.
 - **Tested against failures**: a fake Binance server injects faults and checks the local book matches the true book level for level.
+- **Live terminal view** (`view.py`) and a **data recorder** (`recorder.py`) that saves the book and every trade for research.
 
 ## How it works
 
@@ -106,6 +107,48 @@ A full-screen price ladder that redraws 10 times a second: asks in red above, bi
 
 The border turns yellow and rows dim whenever the book is resyncing or the feed is stale, so you never mistake old data for live. Logs go to `lob.log`. Press `Ctrl+C` to quit.
 
+## Recording data
+
+```bash
+python recorder.py BTCUSDT ETHUSDT
+caffeinate -i python recorder.py BTCUSDT     # macOS: stop the Mac sleeping while it records
+```
+
+Saves the top of the book a few times a second and **every trade**, one file per UTC hour per symbol, gzipped when the hour ends:
+
+```
+data/
+├── recorder.log
+└── BTCUSDT/
+    ├── events.csv                 # resyncs, reconnects, trade gaps and how they were filled
+    └── 2026-10-19/                # UTC date
+        ├── book_03.csv.gz         # top 10 levels, every 0.25 s
+        └── trades_03.csv.gz       # every aggregated trade
+```
+
+| File | Columns |
+|---|---|
+| `book_*.csv.gz` | `recv_ms, event_ms, update_id, bid_px_1, bid_qty_1 … bid_px_10, bid_qty_10, ask_px_1, ask_qty_1 … ask_px_10, ask_qty_10` |
+| `trades_*.csv.gz` | `recv_ms, trade_ms, agg_id, price, qty, aggressor, source` |
+
+- `recv_ms` is your clock; `event_ms` / `trade_ms` are Binance's (milliseconds since 1970, UTC).
+- `aggressor` is who crossed the spread: `buy` means a buyer took the ask.
+- **No trade holes:** trade IDs are checked, and anything missed (disconnects, dropped messages) is fetched back from REST (`source=rest`). Anything that truly can't be recovered is written to `events.csv` as `trades_lost`, never silently skipped.
+- **No bad book rows:** snapshots are only written while the book is synced and fresh; gaps in time are explained in `events.csv`.
+- **Crash-safe:** the current hour is written as plain CSV and flushed every second; leftovers are compressed on the next start, and a restart never overwrites an existing file.
+
+Options: `--depth 10` (levels per side), `--interval 0.25` (seconds between snapshots), `--out data` (folder). Expect very roughly 30–60 MB per symbol per day, compressed (more for busy pairs).
+
+Loading it for analysis (with `pip install pandas`):
+
+```python
+import glob, pandas as pd
+book = pd.concat(pd.read_csv(f) for f in sorted(glob.glob("data/BTCUSDT/*/book_*.csv*")))
+trades = pd.concat(pd.read_csv(f) for f in sorted(glob.glob("data/BTCUSDT/*/trades_*.csv*")))
+book["time"] = pd.to_datetime(book["recv_ms"], unit="ms", utc=True)
+trades["time"] = pd.to_datetime(trades["trade_ms"], unit="ms", utc=True)
+```
+
 ## Using the book in your own code
 
 ```python
@@ -185,6 +228,10 @@ A 45-second soak test with random faults every 0.1–0.6 s (about 9,800 events, 
 
 ## Roadmap
 
+- [x] Record book snapshots and every trade to disk
+- [ ] Signals from recorded data: imbalance, microprice, trade flow
+- [ ] Test whether signals predict short-term moves, net of fees
+- [ ] Replay simulator with realistic fills (fees, latency, queue position)
 - [ ] Order execution over the user-data stream (spot testnet first)
 - [ ] Order-count rate limits and reconciliation after reconnect
 - [ ] Futures (`pu` sequencing) support
@@ -196,8 +243,10 @@ A 45-second soak test with random faults every 0.1–0.6 s (about 9,800 events, 
 orderbook-engine/
 ├── lob.py             # order book, rate limiter, state machine, demo runner
 ├── view.py            # live full-screen terminal view
+├── recorder.py        # records book snapshots + every trade to disk
 ├── test_lob.py        # fake exchange + failure tests
 ├── test_view.py       # terminal view tests
+├── test_recorder.py   # recorder tests (gaps, backfill, rotation, crash recovery)
 ├── requirements.txt
 ├── LICENSE
 └── README.md
