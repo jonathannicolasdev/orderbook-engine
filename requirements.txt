@@ -1,0 +1,5 @@
+websockets>=13
+aiohttp>=3.9
+sortedcontainers>=2.4
+orjson>=3.9  # optional: faster JSON parsing
+pytest>=8
