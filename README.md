@@ -74,6 +74,38 @@ Press `Ctrl+C` to stop cleanly.
 
 > **macOS:** if you see `CERTIFICATE_VERIFY_FAILED`, run `Install Certificates.command` from your `/Applications/Python 3.x/` folder.
 
+## Live terminal view
+
+```bash
+python view.py BTCUSDT
+```
+
+A full-screen price ladder that redraws 10 times a second: asks in red above, bids in green below, with size, running total and a depth bar for each level, plus mid price (with ▲/▼ direction), spread in bps, updates per second and connection health.
+
+```
+╭──────────────────────────────────────────────────────────────────────────────╮
+│  BTCUSDT   ● LIVE   mid 81493.035 ▲   spread 0.01 (0.00 bps)   48 updates/s  │
+│                                                                              │
+│        price        size       total                                         │
+│    81,493.08     0.41000     1.82022  ██▉                                    │
+│    81,493.06     0.89000     1.41022  ██████▏                                │
+│    81,493.04     0.52022     0.52022  ███▋                                   │
+│ ────────────  ──────────  ──────────  0.01 spread                            │
+│    81,493.03       5.699       5.699  ████████████████████████████           │
+│    81,493.01       1.200       6.899  █████▉                                 │
+│    81,492.95       0.31000     7.209  ██▏                                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+| Option | Example | What it does |
+|---|---|---|
+| `--levels N` | `--levels 20` | Rows per side (default: fits the window) |
+| `--group G` | `--group 1` | Merge prices into buckets, e.g. whole dollars |
+| `--fps F` | `--fps 4` | Screen refreshes per second |
+| `--ws-base` / `--rest-base` | see Configuration | Alternative endpoints |
+
+The border turns yellow and rows dim whenever the book is resyncing or the feed is stale, so you never mistake old data for live. Logs go to `lob.log`. Press `Ctrl+C` to quit.
+
 ## Using the book in your own code
 
 ```python
@@ -125,7 +157,7 @@ Set on `Config(...)`:
 ## Testing
 
 ```bash
-pytest -q test_lob.py
+pytest -q
 ```
 
 The tests start a fake Binance (REST + WebSocket) on localhost that keeps a "true" book and streams real-format diff events. Each test injects a failure, then checks the local book is **identical, level for level**, to the true book:
@@ -163,7 +195,9 @@ A 45-second soak test with random faults every 0.1–0.6 s (about 9,800 events, 
 ```
 orderbook-engine/
 ├── lob.py             # order book, rate limiter, state machine, demo runner
+├── view.py            # live full-screen terminal view
 ├── test_lob.py        # fake exchange + failure tests
+├── test_view.py       # terminal view tests
 ├── requirements.txt
 ├── LICENSE
 └── README.md

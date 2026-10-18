@@ -130,7 +130,10 @@ class FakeExchange:
                 if msg is KILL:
                     await ws.close()
                     break
-                await ws.send_str(msg)
+                try:
+                    await ws.send_str(msg)
+                except ConnectionResetError:     # client hung up; that's fine
+                    break
         finally:
             self.clients.remove(q)
         return ws
